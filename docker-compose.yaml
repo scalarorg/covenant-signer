@@ -1,0 +1,38 @@
+services:
+  bitcoind:
+    image: lncm/bitcoind:v26.1
+    container_name: bitcoind
+    volumes:
+      - ./.bitcoind:/home/bitcoind/.bitcoind
+    env_file:
+      - .env
+    # entrypoint: ["sleep", "infinity"]
+    command: 
+      - -testnet 
+      - -rpcbind=${RPC_BIND:-127.0.0.1:18332}
+      - -rpcuser=${RPC_USER:-user}
+      - -rpcpassword=${RPC_PASS:-password}
+      - -rpcallowip=${RPC_ALLOWIP:-127.0.0.1/0}
+      - -datadir=${DATADIR:-/root/.bitcoind}
+      - -server=${SERVER:-1}
+      - -txindex=${TXINDEX:-1}
+      - -connect=${CONNECT:-0}
+      - -daemon=${DAEMON:-1}
+    ports:
+      - "18332:18332"
+  covenant-signer:
+    container_name: covenant-signer
+    build: 
+      context: ./
+      dockerfile: Dockerfile
+    image: "scalarorg/covenant-signer:latest"
+    env_file:
+      - .env
+    volumes:
+      - ./example/config.toml:/home/covenant-signer/.signer/config.toml:Z
+      - ./example/global-params.json:/home/covenant-signer/.signer/global-params.json:Z
+    # entrypoint: sleep infinity
+    entrypoint: ["covenant-signer", "start"]  
+    command: ["--config", "/home/covenant-signer/.signer/config.toml", "--params","/home/covenant-signer/.signer/global-params.json"]
+
+

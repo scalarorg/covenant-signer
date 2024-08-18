@@ -12,6 +12,7 @@ import (
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/wire"
+	btcvault "github.com/scalarorg/btc-vault/btcvault"
 	"github.com/stretchr/testify/require"
 )
 
@@ -23,6 +24,7 @@ func CreateUnlockingTx(t *testing.T, stakerPubKey *btcec.PublicKey,
 	dAppPubKey *btcec.PublicKey,
 	value int64,
 	stakingTxHash chainhash.Hash, params *signerapp.BabylonParams) *wire.MsgTx {
+	btcvault.BuildVaultInfo()
 	unbondingInfo, err := btcstaking.BuildUnbondingInfo(
 		stakerPubKey,
 		[]*btcec.PublicKey{dAppPubKey},

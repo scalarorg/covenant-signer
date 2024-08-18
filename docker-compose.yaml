@@ -3,23 +3,28 @@ services:
     image: lncm/bitcoind:v26.1
     container_name: bitcoind
     volumes:
-      - ./.bitcoind:/home/bitcoind/.bitcoind
+      - ./.bitcoin:/data/.bitcoin
+      - ./example/bitcoin.conf:/data/.bitcoin/bitcoin.conf
+      - ./run.sh:/run.sh
     env_file:
       - .env
+    entrypoint: /run.sh entrypoint
     # entrypoint: ["sleep", "infinity"]
-    command: 
-      - -testnet 
-      - -rpcbind=${RPC_BIND:-127.0.0.1:18332}
-      - -rpcuser=${RPC_USER:-user}
-      - -rpcpassword=${RPC_PASS:-password}
-      - -rpcallowip=${RPC_ALLOWIP:-127.0.0.1/0}
-      - -datadir=${DATADIR:-/root/.bitcoind}
-      - -server=${SERVER:-1}
-      - -txindex=${TXINDEX:-1}
-      - -connect=${CONNECT:-0}
-      - -daemon=${DAEMON:-1}
+    # command: 
+    #   - -testnet 
+    #   - -rpcbind=${RPC_BIND:-127.0.0.1:18332}
+    #   - -rpcuser=${RPC_USER:-user}
+    #   - -rpcpassword=${RPC_PASS:-password}
+    #   - -rpcallowip=${RPC_ALLOWIP:-127.0.0.1/0}
+    #   - -datadir=${DATADIR:-/root/.bitcoind}
+    #   - -server=${SERVER:-1}
+    #   - -txindex=${TXINDEX:-1}
+    #   - -connect=${CONNECT:-0}
+    #   - -daemon=${DAEMON:-1}
     ports:
       - "18332:18332"
+      - "18333:18333"
+
   covenant-signer:
     container_name: covenant-signer
     build: 

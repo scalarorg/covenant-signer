@@ -25,7 +25,7 @@ func NewPrivKeySigner(client *btcclient.BtcClient) *PrivKeySigner {
 var _ ExternalBtcSigner = (*PrivKeySigner)(nil)
 
 func (s *PrivKeySigner) RawSignature(ctx context.Context, request *SigningRequest) (*SigningResult, error) {
-	if err := btcstaking.IsSimpleTransfer(request.UnbondingTransaction); err != nil {
+	if err := btcstaking.IsTransferTx(request.UnbondingTransaction); err != nil {
 		return nil, fmt.Errorf("invalid unbonding transaction received for signing: %w", err)
 	}
 

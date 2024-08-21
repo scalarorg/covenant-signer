@@ -13,6 +13,12 @@ import (
 	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/txscript"
 	"github.com/btcsuite/btcd/wire"
+	"github.com/scalarorg/btc-vault/btcvault"
+)
+
+const (
+	SolType  = 1
+	BWoDType = 2
 )
 
 var (
@@ -86,7 +92,7 @@ func (s *SignerApp) SignUnbondingTransaction(
 	stakerUnbondingSig *schnorr.Signature,
 	covnentSignerPubKey *btcec.PublicKey,
 ) (*schnorr.Signature, error) {
-	if err := btcstaking.IsSimpleTransfer(unbondingTx); err != nil {
+	if err := btcstaking.IsTransferTx(unbondingTx); err != nil { // Move simple transfer to only is transfer
 		return nil, wrapInvalidSigningRequestError(err)
 	}
 
@@ -143,7 +149,7 @@ func (s *SignerApp) SignUnbondingTransaction(
 		))
 	}
 
-	parsedStakingTransaction, err := btcstaking.ParseV0StakingTx(
+	parsedStakingTransaction, err := btcvault.ParseV0VaultTx(
 		stakingTxInfo.Tx,
 		params.MagicBytes,
 		params.CovenantPublicKeys,
@@ -156,29 +162,19 @@ func (s *SignerApp) SignUnbondingTransaction(
 
 	stakingOutputIndexFromUnbondingTx := unbondingTx.TxIn[0].PreviousOutPoint.Index
 
-	if stakingOutputIndexFromUnbondingTx != uint32(parsedStakingTransaction.StakingOutputIdx) {
+	if stakingOutputIndexFromUnbondingTx != uint32(parsedStakingTransaction.VaultOutputIdx) {
 		return nil, wrapInvalidSigningRequestError(fmt.Errorf("unbonding transaction has invalid input index"))
 	}
 
-	if parsedStakingTransaction.OpReturnData.StakingTime < params.MinStakingTime ||
-		parsedStakingTransaction.OpReturnData.StakingTime > params.MaxStakingTime {
-		return nil, wrapInvalidSigningRequestError(
-			fmt.Errorf(
-				"staking time of staking tx with hash: %s is out of bounds",
-				stakingTxHash.String(),
-			),
-		)
-	}
-
-	if parsedStakingTransaction.StakingOutput.Value < int64(params.MinStakingAmount) ||
-		parsedStakingTransaction.StakingOutput.Value > int64(params.MaxStakingAmount) {
+	if parsedStakingTransaction.VaultOutput.Value < int64(params.MinStakingAmount) ||
+		parsedStakingTransaction.VaultOutput.Value > int64(params.MaxStakingAmount) {
 		return nil, wrapInvalidSigningRequestError(fmt.Errorf(
 			"staking amount of staking tx with hash: %s is out of bounds",
 			stakingTxHash.String(),
 		))
 	}
 
-	expectedUnbondingOutputValue := parsedStakingTransaction.StakingOutput.Value - int64(params.UnbondingFee)
+	expectedUnbondingOutputValue := parsedStakingTransaction.VaultOutput.Value - int64(params.UnbondingFee)
 
 	if expectedUnbondingOutputValue <= 0 {
 		// This is actually eror of our parameters configuaration and should not happen
@@ -186,39 +182,17 @@ func (s *SignerApp) SignUnbondingTransaction(
 		return nil, fmt.Errorf("staking output value is too low")
 	}
 
-	// build expected output in unbonding transaction
-	unbondingInfo, err := btcstaking.BuildUnbondingInfo(
-		parsedStakingTransaction.OpReturnData.StakerPublicKey.PubKey,
-		[]*btcec.PublicKey{parsedStakingTransaction.OpReturnData.FinalityProviderPublicKey.PubKey},
-		params.CovenantPublicKeys,
-		params.CovenantQuorum,
-		params.UnbondingTime,
-		btcutil.Amount(expectedUnbondingOutputValue),
-		s.net,
-	)
-
-	if err != nil {
-		return nil, err
-	}
-
-	if !outputsAreEqual(unbondingInfo.UnbondingOutput, unbondingTx.TxOut[0]) {
-		return nil, wrapInvalidSigningRequestError(
-			fmt.Errorf("unbonding output does not match expected output"),
-		)
-	}
-
 	// At this point we know that:
 	// - unbonding tx has correct shape - 1 input, 1 output, no timelocks, not replaceable
 	// - staking tx exists on btc chain, is mature and has correct shape according Babylong Params
 	// - unbonding tx output matches the parameters from the staking transaction and the params
 	// We can send request to our remote signer
-	stakingInfo, err := btcstaking.BuildStakingInfo(
+	stakingInfo, err := btcvault.BuildVaultInfo(
 		parsedStakingTransaction.OpReturnData.StakerPublicKey.PubKey,
 		[]*btcec.PublicKey{parsedStakingTransaction.OpReturnData.FinalityProviderPublicKey.PubKey},
 		params.CovenantPublicKeys,
 		params.CovenantQuorum,
-		parsedStakingTransaction.OpReturnData.StakingTime,
-		btcutil.Amount(parsedStakingTransaction.StakingOutput.Value),
+		btcutil.Amount(parsedStakingTransaction.VaultOutput.Value),
 		s.net,
 	)
 
@@ -226,7 +200,7 @@ func (s *SignerApp) SignUnbondingTransaction(
 		return nil, err
 	}
 
-	unbondingPathInfo, err := stakingInfo.UnbondingPathSpendInfo()
+	unbondingPathInfo, err := stakingInfo.BurnWithoutDAppPathSpendInfo()
 
 	if err != nil {
 		return nil, err
@@ -236,7 +210,7 @@ func (s *SignerApp) SignUnbondingTransaction(
 	// who requests unbonding or at least someone who has access to staker's private key
 	err = btcstaking.VerifyTransactionSigWithOutput(
 		unbondingTx,
-		parsedStakingTransaction.StakingOutput,
+		parsedStakingTransaction.VaultOutput,
 		unbondingPathInfo.RevealedLeaf.Script,
 		parsedStakingTransaction.OpReturnData.StakerPublicKey.PubKey,
 		stakerUnbondingSig.Serialize(),
@@ -258,7 +232,7 @@ func (s *SignerApp) SignUnbondingTransaction(
 	}
 
 	sig, err := s.s.RawSignature(ctx, &SigningRequest{
-		StakingOutput:        parsedStakingTransaction.StakingOutput,
+		StakingOutput:        parsedStakingTransaction.VaultOutput,
 		UnbondingTransaction: unbondingTx,
 		CovenantPublicKey:    covnentSignerPubKey,
 		CovenantAddress:      covenantKeyAddress,
@@ -267,7 +241,6 @@ func (s *SignerApp) SignUnbondingTransaction(
 			ScriptLeaf:   &unbondingPathInfo.RevealedLeaf,
 		},
 	})
-
 	if err != nil {
 		return nil, err
 	}

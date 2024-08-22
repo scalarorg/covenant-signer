@@ -36,7 +36,23 @@ func (s *PrivKeySigner) RawSignature(ctx context.Context, request *SigningReques
 	}
 	// Zero key after signing
 	defer key.Zero()
-
+	// TODO: let check this sign function
+	// go through signTxWithOneScriptSpendInputFromTapLeafInternal from this
+	// at line 415 have function RawTxInTapscriptSignature
+	// go through that at the line 145
+	// from 160 to 165 can copy this to debug:
+	// --------------------------------
+	// fmt.Println(privKey, hex.EncodeToString(sigHash))
+	// fmt.Println(hex.EncodeToString(privKey.PubKey().SerializeCompressed()))
+	// signature, err := schnorr.Sign(privKey, sigHash)
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// fmt.Println(hex.EncodeToString(signature.Serialize()))
+	// --------------------------------
+	// This schnorr.Sign() function work different than bitcoinlib-js library
+	// it provided the different signature
+	// we need to resolve this issue !!!
 	sig, err := btcstaking.SignTxWithOneScriptSpendInputFromTapLeaf(
 		request.UnbondingTransaction,
 		request.StakingOutput,

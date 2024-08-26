@@ -27,6 +27,7 @@ getnewaddress() {
     BTC_ADDRESS=$(bitcoin-cli getnewaddress)
     echo $BTC_ADDRESS>$DATADIR/address.txt
     bitcoin-cli walletpassphrase ${WALLET_PASSPHRASE:-covenant} 60
+    bitcoin-cli getaddressinfo $BTC_ADDRESS>$DATADIR/addressinfo.txt
     bitcoin-cli dumpprivkey $BTC_ADDRESS>$DATADIR/privkey.txt
 }
 entrypoint() {
